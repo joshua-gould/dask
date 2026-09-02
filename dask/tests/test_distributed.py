@@ -424,6 +424,29 @@ def test_zarr_in_memory_distributed_err(c, zarr):
         a.to_zarr(z)
 
 
+def test_zarr_distributed_rectilinear_chunks(c, zarr):
+    np = pytest.importorskip("numpy")
+    da = pytest.importorskip("dask.array")
+
+    with tmpdir() as d, zarr.config.set({"array.rectilinear_chunks": True}):
+        x1 = da.concatenate(
+            (da.ones((3, 10)), da.ones((2, 10)), da.ones((4, 10))), axis=0
+        )
+        x2 = x1.rechunk((2, 10))
+        rectilinear_chunks_path = os.path.join(d, "test1.zarr")
+        regular_chunks_path = os.path.join(d, "test2.zarr")
+
+        da.to_zarr(x1, rectilinear_chunks_path, chunks=x1.chunks, overwrite=True)
+        da.to_zarr(x2, regular_chunks_path, overwrite=True)
+
+        d1 = da.from_zarr(rectilinear_chunks_path)
+        d2 = da.from_zarr(regular_chunks_path)
+        np.testing.assert_array_equal(d1, x1)
+        np.testing.assert_array_equal(d2, x1)
+        assert d1.chunks == x1.chunks
+        assert d2.chunks == x2.chunks
+
+
 def test_scheduler_equals_client(c):
     x = delayed(lambda: 1)()
     assert x.compute(scheduler=c) == 1
